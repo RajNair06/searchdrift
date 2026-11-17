@@ -1,0 +1,28 @@
+# Secrets — never commit (Gemini API key lives here)
+.env
+.env.*
+!.env.example
+
+# Databases and recorded model interactions
+*.db
+*.db-journal
+*.sqlite
+recordings/
+
+# Build output
+build/
+dist/
+bin/
+
+# Python
+__pycache__/
+*.py[oc]
+.venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local-only OpenCode files (not committed)
+opencode.json
+PROGRESS.md
