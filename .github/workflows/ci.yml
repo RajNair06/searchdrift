@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    # Service containers: Docker containers that start before your tests and
+    # die when they finish. We need Postgres for schema and cassette tests.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          # CI credentials — ephemeral, never reused. These live only for the
+          # duration of this job (typically 2-3 minutes).
+          POSTGRES_USER: searchdrift
+          POSTGRES_PASSWORD: searchdrift
+          POSTGRES_DB: searchdrift
+        ports:
+          - 5432:5432  # Standard port in CI (no conflict with host Postgres)
+        options: >-
+          --health-cmd "pg_isready -U searchdrift -d searchdrift"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.5.7"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Run migrations
+        env:
+          # Override DATABASE_URL to point to the CI Postgres (localhost:5432),
+          # not our local dev port (15432). CI has no host Postgres conflict.
+          DATABASE_URL: postgresql+asyncpg://searchdrift:searchdrift@localhost:5432/searchdrift
+        run: uv run alembic upgrade head
+
+      - name: Run tests
+        env:
+          DATABASE_URL: postgresql+asyncpg://searchdrift:searchdrift@localhost:5432/searchdrift
+          # No vendor API keys — all tests use mocked HTTP or replay mode.
+          # If a test accidentally makes a real network call, it will fail
+          # because the key is missing.
+        run: uv run pytest -v
+
+      - name: Run linter
+        run: uv run ruff check src/ tests/

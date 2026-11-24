@@ -1,0 +1,42 @@
+# Local infrastructure for SearchDrift.
+# Host ports are 15432 (Postgres) and 16379 (Redis), not the defaults: this
+# machine already runs a system Postgres on 5432 and Redis on 6379.
+# The Python app runs on the host with `uv run` (fast edit-run loop);
+# API/worker containers are added when processes split (week 3).
+#
+#   docker compose up -d      start Postgres + Redis in the background
+#   docker compose ps         show status (wait for "healthy")
+#   docker compose down       stop (data is kept in the named volume)
+#   docker compose down -v    stop AND delete all data
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      # Local development credentials only. Never reuse these anywhere real.
+      POSTGRES_USER: searchdrift
+      POSTGRES_PASSWORD: searchdrift
+      POSTGRES_DB: searchdrift
+    ports:
+      - "127.0.0.1:15432:5432"  # host 15432 -> container 5432; this machine only
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # "Container started" != "database accepts connections". This checks the latter.
+      test: ["CMD-SHELL", "pg_isready -U searchdrift -d searchdrift"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  redis:
+    image: redis:7
+    ports:
+      - "127.0.0.1:16379:6379"  # host 16379 -> container 6379
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+volumes:
+  pgdata:
